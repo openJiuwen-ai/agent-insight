@@ -1,3 +1,5 @@
+<!-- Temporary change for PR pipeline trigger verification. -->
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="public/brand/logo-horizontal-dark.svg" />
