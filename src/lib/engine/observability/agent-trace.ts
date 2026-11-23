@@ -25,7 +25,7 @@
  * 上层 UI 组件（AgentTraceView）无需感知。
  */
 
-import { deriveExecutionTiming } from './execution-timing';
+import { deriveExecutionTiming, toEpochMs } from './execution-timing';
 import { stringifyClaudeContent } from '@/lib/shared/interaction-content';
 import { isSkillLoaderToolName } from '@/lib/evaluators/evaluator-case-context';
 
@@ -889,23 +889,9 @@ function errorSummaryOf(it: RawInteraction): string {
 }
 
 function toMsTimestamp(v: any): number | undefined {
-    if (v == null) return undefined;
-    if (typeof v === 'number' && Number.isFinite(v)) {
-        // Treat plausible Unix seconds as seconds, otherwise milliseconds.
-        return v > 0 && v < 10_000_000_000 ? v * 1000 : v;
-    }
-    if (typeof v === 'string') {
-        const s = v.trim();
-        if (!s) return undefined;
-        if (/^\d+(\.\d+)?$/.test(s)) {
-            const n = Number(s);
-            if (!Number.isFinite(n)) return undefined;
-            return n > 0 && n < 10_000_000_000 ? n * 1000 : n;
-        }
-        const parsed = Date.parse(s);
-        return Number.isFinite(parsed) ? parsed : undefined;
-    }
-    return undefined;
+    // Single unit rule shared with deriveExecutionTiming: a seconds value must
+    // never be read as milliseconds, otherwise span bounds drift by 1000x.
+    return toEpochMs(v);
 }
 
 function interactionStartedAt(it: RawInteraction): number | undefined {

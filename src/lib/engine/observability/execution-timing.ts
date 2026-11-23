@@ -29,11 +29,39 @@ type Interaction = {
 };
 type Interval = { start: number; end: number };
 
+/** Values below this are plausible Unix *seconds*; above it, Unix milliseconds. */
+const SECONDS_UPPER_BOUND = 10_000_000_000;
+
+/**
+ * Normalise a timestamp-ish value to epoch milliseconds.
+ *
+ * Uploaders may send 10-digit Unix seconds, 13-digit milliseconds, or ISO
+ * strings. Every consumer (active duration here, span bounds in agent-trace)
+ * must apply the same unit rule, otherwise a seconds value is read as
+ * milliseconds and reported 1000x too small.
+ */
+export function toEpochMs(value: unknown): number | undefined {
+    if (value == null) return undefined;
+    if (typeof value === 'number') {
+        if (!Number.isFinite(value)) return undefined;
+        return value > 0 && value < SECONDS_UPPER_BOUND ? value * 1000 : value;
+    }
+    if (typeof value === 'string') {
+        const s = value.trim();
+        if (!s) return undefined;
+        if (/^\d+(\.\d+)?$/.test(s)) {
+            const n = Number(s);
+            if (!Number.isFinite(n)) return undefined;
+            return n > 0 && n < SECONDS_UPPER_BOUND ? n * 1000 : n;
+        }
+        const parsed = Date.parse(s);
+        return Number.isFinite(parsed) ? parsed : undefined;
+    }
+    return undefined;
+}
+
 function timestamp(value: unknown): number | undefined {
-    if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
-    if (typeof value !== 'string' || !value.trim()) return undefined;
-    const parsed = /^\d+$/.test(value.trim()) ? Number(value) : Date.parse(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
+    return toEpochMs(value);
 }
 
 function userInput(item: Interaction): boolean {
