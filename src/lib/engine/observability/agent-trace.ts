@@ -26,6 +26,7 @@
  */
 
 import { deriveExecutionTiming } from './execution-timing';
+import { dedupeToolCalls } from './tool-call-dedupe';
 import { stringifyClaudeContent } from '@/lib/shared/interaction-content';
 import { isSkillLoaderToolName } from '@/lib/evaluators/evaluator-case-context';
 
@@ -914,48 +915,6 @@ function interactionStartedAt(it: RawInteraction): number | undefined {
 
 function interactionCompletedAt(it: RawInteraction): number | undefined {
     return toMsTimestamp(it.timeInfo?.completed);
-}
-
-function stableStringify(v: any): string {
-    if (v == null) return '';
-    if (typeof v === 'string') return v;
-    try {
-        return JSON.stringify(v);
-    } catch {
-        return String(v);
-    }
-}
-
-function toolCallKey(tc: ToolCall): string {
-    const id = tc.id;
-    if (typeof id === 'string' && id.trim()) return `id:${id.trim()}`;
-    const name = tc.function?.name || tc.name || 'unknown';
-    const args = tc.function?.arguments ?? tc.arguments ?? '';
-    return `sig:${name}:${stableStringify(args)}`;
-}
-
-function mergeToolCall(existing: ToolCall, incoming: ToolCall): ToolCall {
-    const out: ToolCall = { ...existing, ...incoming };
-    if (existing.output !== undefined && incoming.output === undefined) out.output = existing.output;
-    if (existing.result !== undefined && incoming.result === undefined) out.result = existing.result;
-    if (existing.timing && !incoming.timing) out.timing = existing.timing;
-    return out;
-}
-
-function dedupeToolCalls(calls: ToolCall[]): ToolCall[] {
-    const out: ToolCall[] = [];
-    const pos = new Map<string, number>();
-    for (const tc of calls) {
-        const key = toolCallKey(tc);
-        const idx = pos.get(key);
-        if (idx == null) {
-            pos.set(key, out.length);
-            out.push(tc);
-        } else {
-            out[idx] = mergeToolCall(out[idx], tc);
-        }
-    }
-    return out;
 }
 
 /** True when this interaction is the user-side "trigger" that asks opencode to

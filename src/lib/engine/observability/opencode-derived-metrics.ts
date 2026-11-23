@@ -15,6 +15,7 @@
  */
 
 import { deriveExecutionTiming } from './execution-timing'
+import { dedupeToolCallsById } from './tool-call-dedupe'
 
 type AnyObj = Record<string, any>
 
@@ -93,8 +94,11 @@ export function deriveOpencodeExecutionFields(interactions: AnyObj[], sessionId?
     }
 
     if (Array.isArray(m.tool_calls)) {
-      toolCallCount += m.tool_calls.length
-      for (const tc of m.tool_calls) {
+      // One physical call arrives as several streamed parts sharing an id;
+      // count each call once so this matches the trace view's stats.
+      const calls = dedupeToolCallsById(m.tool_calls as Array<Record<string, any>>)
+      toolCallCount += calls.length
+      for (const tc of calls) {
         if (tc?.state === "error" || tc?.state === "failed") toolCallErrorCount++
       }
     }

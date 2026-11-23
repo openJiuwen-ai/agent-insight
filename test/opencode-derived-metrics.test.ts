@@ -56,3 +56,38 @@ test("opencode: deriveOpencodeExecutionFields is deterministic and prefers top-l
   assert.deepEqual(fields2, fields)
 })
 
+test("opencode: streamed parts of one tool call are counted once", () => {
+  // The uploader emits one entry per tool part state, all sharing the callID.
+  // Persisting the raw array length inflated tool_call_count and the error rate.
+  const interactions = [
+    { role: "user", content: "read the file" },
+    {
+      role: "assistant",
+      content: "done",
+      usage: { input_tokens: 1, output_tokens: 1 },
+      tool_calls: [
+        { id: "call_read_1", type: "function", function: { name: "read", arguments: '{"file_path":"a.ts"}' }, state: "pending" },
+        { id: "call_read_1", type: "function", function: { name: "read", arguments: '{"file_path":"a.ts"}' }, state: "running" },
+        { id: "call_read_1", type: "function", function: { name: "read", arguments: '{"file_path":"a.ts"}' }, state: "error" },
+        { id: "call_grep_1", type: "function", function: { name: "grep", arguments: '{"pattern":"x"}' }, state: "success" },
+      ],
+    },
+  ]
+
+  const fields = deriveOpencodeExecutionFields(interactions as any[])
+
+  assert.equal(fields.tool_call_count, 2)
+  assert.equal(fields.tool_call_error_count, 1)
+})
+
+test("opencode: id-less tool calls without a name stay separate", () => {
+  // Legacy payloads carry no id and sometimes no name; there is no evidence
+  // they are the same call, so they must not be merged into one.
+  const fields = deriveOpencodeExecutionFields([
+    { role: "assistant", content: "done", tool_calls: [{ state: "success" }, { state: "error" }] },
+  ] as any[])
+
+  assert.equal(fields.tool_call_count, 2)
+  assert.equal(fields.tool_call_error_count, 1)
+})
+
